@@ -6,7 +6,10 @@ import zipfile
 import shutil
 
 import ayon_harmony.api as harmony
-
+from ayon_core.pipeline import (
+    AYON_CONTAINER_ID,
+)
+import os
 
 class TemplateLoader(harmony.BackdropBaseLoader):
     """Load Harmony template as Backdrop container."""
@@ -20,6 +23,7 @@ class TemplateLoader(harmony.BackdropBaseLoader):
 
     def load(self, context, name=None, namespace=None, data=None):
         """Plugin entry point.
+        Write metadata to note node in the backdrop for better tracking of the container and its metadata.
 
         Args:
             context (:class:`pyblish.api.Context`): Context.
@@ -37,6 +41,9 @@ class TemplateLoader(harmony.BackdropBaseLoader):
         override_name = ""
         if self.override_name:
             override_name = self.override_name.format(**context)
+
+        with open(r"C:\Users\normaal\Documents\YuanDev\AYON-Development-Workbench\LOG.txt", "a", encoding="utf-8") as log_file:
+            log_file.write(f"override_name: {override_name!r}\n")
 
         parent_backdrop_name = None
         if self.parent_backdrop_matching:
@@ -57,6 +64,19 @@ class TemplateLoader(harmony.BackdropBaseLoader):
                 ],
             }
         )["result"]
+
+        metadata = {
+            backdrop_name: {
+                "schema": "openpype:container-2.0",
+                "id": AYON_CONTAINER_ID,
+                "name": backdrop_name,
+                "namespace": namespace,
+                "loader": str(self_name),
+                "representation": context["representation"]["id"],
+            }
+        }
+
+        harmony.ensure_metadata_in_backdrop(backdrop_name, metadata)
 
         # Cleanup the temp directory
         shutil.rmtree(temp_dir)

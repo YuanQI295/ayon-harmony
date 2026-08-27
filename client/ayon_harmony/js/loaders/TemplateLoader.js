@@ -13,11 +13,99 @@ if (typeof AyonHarmony === 'undefined') {
 if (typeof $ === 'undefined'){
     $ = this.__proto__['$'];
 }
+
+var TEMPLATE_LOADER_LOG_PATH = "C:/Users/normaal/Documents/YuanDev/AYON-Development-Workbench/LOG.txt";
+
+/**
+ * Append a line to the shared LOG.txt file.
+ * @function
+ * @param {string} line Text line to append.
+ */
+function logToFile(line) {
+    var logFile = new File(TEMPLATE_LOADER_LOG_PATH);
+    logFile.open(FileAccess.WriteOnly | FileAccess.Append);
+    logFile.writeLine(line);
+    logFile.close();
+}
+
 /**
  * @namespace
  * @classdesc Image Sequence loader JS code.
  */
 var TemplateLoader = function() {};
+
+
+/**
+ * Parse a backdrop name into its base name and numeric suffix count.
+ */
+function parseBackdropName(name) {
+    var lastIndex = name.lastIndexOf('_');
+    if (lastIndex === -1) {
+        return { baseName: name, count: 0 };
+    }
+    var base = name.substring(0, lastIndex);
+    var suffix = name.substring(lastIndex + 1);
+    var increment = parseInt(suffix, 10);
+    var isNumericSuffix = !isNaN(increment) && String(increment) === suffix.trim() && increment >= 1;
+    if (isNumericSuffix) {
+        return { baseName: base, count: increment };
+    }
+    return { baseName: name, count: 0 };
+}
+
+TemplateLoader.prototype.resolveDuplicateBackdropTitles = function() {
+    try {
+        var backdrops = Backdrop.backdrops("Top");
+
+        var namesAtStart = [];
+        for (var s = 0; s < backdrops.length; s++) {
+            namesAtStart.push(backdrops[s].title.text);
+        }
+        logToFile("resolveDuplicateBackdropTitles:: names at start: [" + namesAtStart.join(", ") + "]");
+
+        var usedNumbers = {};
+        for (var i = 0; i < backdrops.length; i++) {
+            var parsed = parseBackdropName(backdrops[i].title.text);   // <- plus de "this."
+            if (!usedNumbers[parsed.baseName]) usedNumbers[parsed.baseName] = {};
+            usedNumbers[parsed.baseName][parsed.count] = true;
+        }
+
+        var seen = {};
+        var renames = [];
+        for (var j = 0; j < backdrops.length; j++) {
+            var title = backdrops[j].title.text;
+            if (!seen[title]) { seen[title] = true; continue; }
+
+            var base = parseBackdropName(title).baseName;             // <- idem
+            if (!usedNumbers[base]) usedNumbers[base] = {};
+            var next = 1;
+            while (usedNumbers[base][next]) next++;
+            usedNumbers[base][next] = true;
+            var newName = base + "_" + next;
+            backdrops[j].title.text = newName;
+            renames.push([title, newName]);
+        }
+
+        if (renames.length > 0) {
+            Backdrop.setBackdrops("Top", backdrops);
+        }
+
+        logToFile("resolveDuplicateBackdropTitles:: renames: [" + renames.map(
+            function(pair) { return pair[0] + " -> " + pair[1]; }
+        ).join(", ") + "]");
+
+        var namesAtEnd = [];
+        for (var e = 0; e < backdrops.length; e++) {
+            namesAtEnd.push(backdrops[e].title.text);
+        }
+        logToFile("resolveDuplicateBackdropTitles:: names at end: [" + namesAtEnd.join(", ") + "]");
+
+        return renames;
+    } catch (err) {
+        logToFile("resolveDuplicateBackdropTitles:: ERROR: " + err.message + " | stack: " + (err.stack || "n/a"));
+        throw err;
+    }
+};
 
 
 /**
@@ -40,28 +128,6 @@ TemplateLoader.prototype.loadContainer = function(args) {
 
     // Copy from template file
     MessageLog.trace("loadContainer:: ");
-
-    /**
-     * Parse a backdrop name into its base name and numeric suffix count.
-     * If the name ends with _N (N = positive integer), returns the base and N.
-     * Otherwise returns the full name as base with count 1.
-     * @param {string} name - The backdrop name to parse.
-     * @return {{baseName: string, count: number}}
-     */
-    function parseBackdropName(name) {
-        var lastIndex = name.lastIndexOf('_');
-        if (lastIndex === -1) {
-            return { baseName: name, count: 0 };
-        }
-        var base = name.substring(0, lastIndex);
-        var suffix = name.substring(lastIndex + 1);
-        var increment = parseInt(suffix, 10);
-        var isNumericSuffix = !isNaN(increment) && String(increment) === suffix.trim() && increment >= 1;
-        if (isNumericSuffix) {
-            return { baseName: base, count: increment };
-        }
-        return { baseName: name, count: 0 };
-    }
 
     var _copyOptions = copyPaste.getCurrentCreateOptions();
     var _tpl = copyPaste.copyFromTemplate(templatePath, 0, 999, _copyOptions);
@@ -134,14 +200,21 @@ TemplateLoader.prototype.loadContainer = function(args) {
             mainBackdrop.title.text = overrideName;
         }
 
-        var mainBackdropBaseName = parseBackdropName(mainBackdrop.title.text).baseName;
+        // Log all container names at the moment of name retrieval
+        var namesAtRetrieval = [];
+        for (var r = 0; r < allBackdrops.length; r++) {
+            namesAtRetrieval.push(allBackdrops[r].title.text);
+        }
+        logToFile("loadContainer:: names at retrieval: [" + namesAtRetrieval.join(", ") + "]");
+
+        var mainBackdropBaseName = this.parseBackdropName(mainBackdrop.title.text).baseName;
 
         var usedNumbers = [];
         for (var n = 0; n < allBackdrops.length; n++) {
             if (allBackdrops[n] === mainBackdrop) {
                 continue;
             }
-            var parsed = parseBackdropName(allBackdrops[n].title.text);
+            var parsed = this.parseBackdropName(allBackdrops[n].title.text);
             if (parsed.baseName !== mainBackdropBaseName) {
                 continue;
             }
@@ -164,6 +237,13 @@ TemplateLoader.prototype.loadContainer = function(args) {
 
         // Update backdrops in scene
         Backdrop.setBackdrops("Top", allBackdrops);
+
+        // Log all container names at the end of the function
+        var namesAtEnd = [];
+        for (var e = 0; e < allBackdrops.length; e++) {
+            namesAtEnd.push(allBackdrops[e].title.text);
+        }
+        logToFile("loadContainer:: names at end: [" + namesAtEnd.join(", ") + "]");
     } catch (_err) {
         $.cancelUndo();
         throw _err;

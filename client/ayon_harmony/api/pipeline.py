@@ -1,7 +1,8 @@
 import os
 from pathlib import Path
 import logging
-
+import json
+from datetime import datetime
 from qtpy import QtWidgets
 
 from ayon_core import style
@@ -45,13 +46,36 @@ from .workio import (
     work_root
 )
 
-log = logging.getLogger("ayon_harmony")
+log = logging.getLogger(__name__)
 
 PLUGINS_DIR = os.path.join(HARMONY_ADDON_ROOT, "plugins")
 PUBLISH_PATH = os.path.join(PLUGINS_DIR, "publish")
 LOAD_PATH = os.path.join(PLUGINS_DIR, "load")
 CREATE_PATH = os.path.join(PLUGINS_DIR, "create")
 INVENTORY_PATH = os.path.join(PLUGINS_DIR, "inventory")
+
+# Same file the JS side (TemplateLoader.js) writes to via logToFile().
+# Keeping both sides in one file lets us see the exact interleaving
+# of Python and Harmony/JS calls when debugging.
+LOG_FILE_PATH = (
+    r"C:\Users\normaal\Documents\YuanDev\AYON-Development-Workbench\LOG.txt"
+)
+
+
+def log_to_file(line):
+    """Append a line to the shared LOG.txt file (same file the JS side
+    writes to), prefixed with a timestamp and a PY marker so it's easy
+    to tell Python log lines apart from JS ones.
+
+    Never raises - logging must not break the pipeline if the log
+    file/path is unavailable (e.g. different machine, permissions).
+    """
+    try:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] [PY] {line}\n")
+    except Exception:
+        log.exception("log_to_file:: failed to write to %s", LOG_FILE_PATH)
 
 
 class HarmonyHost(HostBase, IWorkfileHost, ILoadHost, IPublishHost):
@@ -278,32 +302,213 @@ def ls():
     """Yields containers from Harmony scene.
 
     Clean up scene data from orphaned containers.
+    Look for backdrop metadata and add them to scene data if not registered.
 
     Yields:
         dict: container
     """
+    log_to_file("ls:: start")
+
+    log_to_file("ls:: calling resolve_duplicate_backdrops()")
+    resolve_duplicate_backdrops()
+    log_to_file("ls:: resolve_duplicate_backdrops() returned")
+
     scene_data = harmony.get_scene_data() or dict()
-    containers_names = (
-        harmony.get_all_top_names() | harmony.get_palettes_paths()
-    )
-    cleaned_scene_data = False
+    log_to_file(f"ls:: scene_data keys={list(scene_data.keys())}")
+
+    containers_names = harmony.get_all_top_names() | harmony.get_palettes_paths()
+    log_to_file(f"ls:: containers_names={containers_names}")
+
+    updated_scene_data = False
     for entity_name, entity_data in scene_data.copy().items():
         if not is_container_data(entity_data):
             continue
 
         # Filter orphaned containers
         if entity_name not in containers_names:
+            log_to_file(f"ls:: removing orphaned container '{entity_name}' from scene_data")
             del scene_data[entity_name]
-            cleaned_scene_data = True
+            updated_scene_data = True
+
+    for entity_name, entity_data in scene_data.items():
+        if is_container_data(entity_data):
+            clean_data = {
+                k: v for k, v in entity_data.items()
+            }
+            log_to_file(f"ls:: ensure_metadata_in_backdrop('{entity_name}')")
+            ensure_metadata_in_backdrop(entity_name, {entity_name: clean_data})
+            log_to_file(f"ls:: ensure_metadata_in_backdrop('{entity_name}') returned")
+
+    log_to_file("ls:: calling read_metadata_from_backdrops()")
+    backdrop_metadata = read_metadata_from_backdrops()
+    log_to_file(f"ls:: read_metadata_from_backdrops() returned keys={list(backdrop_metadata.keys())}")
+
+    for entity_name, entity_data in backdrop_metadata.items():
+        if entity_name not in scene_data:
+            log_to_file(f"ls:: adding backdrop metadata for '{entity_name}' to scene_data")
+            updated_scene_data = True
+            scene_data[entity_name] = entity_data
+
+        # Single yield point
+    yielded_count = 0
+    for entity_name, entity_data in scene_data.items():
+        if not is_container_data(entity_data):
             continue
 
-        if not entity_data.get("objectName"):  # backward compatibility
+        if entity_name not in containers_names:
+            continue
+        if not entity_data.get("objectName"):
             entity_data["objectName"] = entity_data["name"]
+        yielded_count += 1
         yield entity_data
 
+    log_to_file(f"ls:: yielded {yielded_count} containers")
+
     # Update scene data if cleaned
-    if cleaned_scene_data:
+    if updated_scene_data:
+        log_to_file("ls:: updated_scene_data=True, writing scene_data back")
         harmony.set_scene_data(scene_data)
+
+    log_to_file("ls:: end")
+
+def read_metadata_from_backdrops() -> dict:
+    """Read metadata of templates from backdrop text fields.
+
+    Looks for backdrops containing marker in their description text and parses the JSON metadata that follows.
+
+    Returns:
+        dict: Dictionary with metadata.
+    """
+    log_to_file("read_metadata_from_backdrops:: start")
+
+    func = """function readBackdropMetadata() {
+        var backdrops = Backdrop.backdrops("Top");
+        var results = [];
+        for (var i = 0; i < backdrops.length; i++) {
+            var desc = backdrops[i].description.text || "";
+            var marker = "<AYON_METADATA/>";
+            var markerIndex = desc.indexOf(marker);
+            if (markerIndex !== -1) {
+                var jsonStr = desc.substring(markerIndex + marker.length).trim();
+                results.push(jsonStr);
+            }
+        }
+        return results;
+    }
+    readBackdropMetadata"""
+
+    log_to_file("read_metadata_from_backdrops:: sending JS function to Harmony")
+    response = harmony.send({"function": func})
+    log_to_file(f"read_metadata_from_backdrops:: raw response={response}")
+
+    metadata_list = response["result"]
+    log_to_file(f"read_metadata_from_backdrops:: metadata_list length={len(metadata_list)}")
+
+    metadata_dict = {}
+    for i, entry in enumerate(metadata_list):
+        try:
+            parsed = json.loads(entry)
+        except json.JSONDecodeError:
+            log_to_file(
+                f"read_metadata_from_backdrops:: ERROR failed to parse "
+                f"entry #{i}: {entry!r}"
+            )
+            raise
+        metadata_dict |= parsed
+
+    log_to_file(f"read_metadata_from_backdrops:: end, metadata_dict keys={list(metadata_dict.keys())}")
+    return metadata_dict
+
+
+def ensure_metadata_in_backdrop(backdrop_name: str, metadata: dict):
+    """Ensure AYON metadata is stored in a backdrop's text field.
+
+    Looks for a backdrop matching the given name and checks if the marker is already present in its description.
+    If not, appends the marker and the serialized metadata as JSON, separated by lines to keep it hidden from animators.
+
+    Args:
+        backdrop_name (str): Name of the backdrop to write metadata into.
+        metadata (dict): Metadata to store in the backdrop.
+    """
+
+    metadata_json = json.dumps(metadata).replace('"', '\\"')
+    separator = "\\n" * 100
+    log_to_file(
+        f"ensure_metadata_in_backdrop:: sending script for "
+        f"backdrop_name={backdrop_name!r} (metadata_json length={len(metadata_json)})"
+    )
+    harmony.send({"script": f"""
+    var backdrops = Backdrop.backdrops("Top");
+    for (var i = 0; i < backdrops.length; i++) {{
+        if (backdrops[i].title.text === "{backdrop_name}") {{
+            var currentText = backdrops[i].description.text || "";
+            var marker = "<AYON_METADATA/>";
+            var markerIndex = currentText.indexOf(marker);
+            if (markerIndex === -1) {{
+                backdrops[i].description.text = currentText + "{separator}" + marker + "\\n" + "{metadata_json}";
+                Backdrop.setBackdrops("Top", backdrops);
+                MessageLog.trace("Metadata ensured in backdrop: " + backdrops[i].title.text);
+            }}
+        }}
+    }}
+    """})
+
+
+def resolve_duplicate_backdrops():
+    """Rename backdrops sharing an identical exact name, and move
+    their metadata to the new key. The "name" field inside each
+    entry is left untouched: it already holds the original template
+    name set at load time, independent of the backdrop's title.
+    """
+    log_to_file("resolve_duplicate_backdrops:: start, calling JS resolveDuplicateBackdropTitles")
+
+    response = harmony.send({
+        "function": "AyonHarmony.Loaders.TemplateLoader.resolveDuplicateBackdropTitles",
+        "args": [],
+    })
+    log_to_file(f"resolve_duplicate_backdrops:: raw response={response}")
+
+    renames = response["result"]
+    log_to_file(f"resolve_duplicate_backdrops:: renames={renames}")
+
+    for old_name, new_name in renames:
+        log_to_file(f"resolve_duplicate_backdrops:: moving metadata key {old_name!r} -> {new_name!r}")
+        _move_metadata_key(old_name, new_name)
+        log_to_file(f"resolve_duplicate_backdrops:: resolved duplicate backdrop name: {old_name} -> {new_name}")
+
+    log_to_file(f"resolve_duplicate_backdrops:: end, {len(renames)} rename(s) processed")
+    return renames
+
+
+def _move_metadata_key(old_name: str, new_name: str):
+    """Move a backdrop's metadata entry from old_name to new_name key."""
+    log_to_file(f"_move_metadata_key:: start old_name={old_name!r} new_name={new_name!r}")
+
+    response = harmony.send({"script": f"""
+    var backdrops = Backdrop.backdrops("Top");
+    for (var i = 0; i < backdrops.length; i++) {{
+        if (backdrops[i].title.text === "{new_name}") {{
+            var desc = backdrops[i].description.text || "";
+            var marker = "<AYON_METADATA/>";
+            var idx = desc.indexOf(marker);
+            if (idx !== -1) {{
+                var prefix = desc.substring(0, idx + marker.length);
+                try {{
+                    var metadata = JSON.parse(desc.substring(idx + marker.length).trim());
+                    if (metadata["{old_name}"]) {{
+                        metadata["{new_name}"] = metadata["{old_name}"];
+                        delete metadata["{old_name}"];
+                        backdrops[i].description.text = prefix + "\\n" + JSON.stringify(metadata);
+                        Backdrop.setBackdrops("Top", backdrops);
+                    }}
+                }} catch (e) {{}}
+            }}
+        }}
+    }}
+    """})
+    log_to_file(f"_move_metadata_key:: response={response}")
+    log_to_file(f"_move_metadata_key:: end old_name={old_name!r} new_name={new_name!r}")
+
 
 
 def containerise(name,
@@ -342,6 +547,8 @@ def containerise(name,
         "nodes": nodes
     }
 
+    log_to_file(f"containerise:: imprinting node={node!r} data={data}")
     harmony.imprint(node, data)
+    log_to_file(f"containerise:: done for node={node!r}")
 
     return node
