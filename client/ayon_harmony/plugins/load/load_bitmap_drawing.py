@@ -131,11 +131,11 @@ replace_image
 """
 
 
-class ImportImageLoader(load.LoaderPlugin):
+class BitmapDrawingLoader(load.LoaderPlugin):
     """Import a single image as a Toon Boom bitmap drawing."""
 
     label = "Import bitmap drawing"
-    product_base_types = {"image", "render", "plate"}
+    product_base_types = {"image", "render", "review", "plate"}
     product_types = product_base_types
     representations = {"*"}
     extensions = {"png", "jpg", "jpeg", "tga", "sgi", "psd"}
