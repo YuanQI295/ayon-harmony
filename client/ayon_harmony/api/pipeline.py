@@ -45,7 +45,7 @@ from .workio import (
     work_root
 )
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("ayon_harmony")
 
 
 PLUGINS_DIR = os.path.join(HARMONY_ADDON_ROOT, "plugins")

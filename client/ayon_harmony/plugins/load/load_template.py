@@ -10,7 +10,7 @@ import ayon_harmony.api as harmony
 from ayon_core.pipeline import (
     AYON_CONTAINER_ID,
 )
-import os
+
 
 class TemplateLoader(harmony.BackdropBaseLoader):
     """Load Harmony template as Backdrop container."""
@@ -24,16 +24,16 @@ class TemplateLoader(harmony.BackdropBaseLoader):
 
     def load(self, context, name=None, namespace=None, data=None):
         """Plugin entry point.
-        Write metadata to note node in the backdrop for better tracking of the container and its metadata.
+        Write metadata to note node in the backdrop for better tracking of 
+        the container and its metadata.
 
         Args:
             context (:class:`pyblish.api.Context`): Context.
             name (str, optional): Container name.
             namespace (str, optional): Container namespace.
             data (dict, optional): Additional data passed into loader.
-
         """
-        # Load template.
+
         self_name = self.__class__.__name__
         temp_dir = tempfile.mkdtemp()
         zip_file = self.filepath_from_context(context)
@@ -87,3 +87,4 @@ class TemplateLoader(harmony.BackdropBaseLoader):
             context,
             self_name
         )
+    
