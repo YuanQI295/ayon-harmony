@@ -42,8 +42,6 @@ class TemplateLoader(harmony.BackdropBaseLoader):
         if self.override_name:
             override_name = self.override_name.format(**context)
 
-        with open(r"C:\Users\normaal\Documents\YuanDev\AYON-Development-Workbench\LOG.txt", "a", encoding="utf-8") as log_file:
-            log_file.write(f"override_name: {override_name!r}\n")
 
         parent_backdrop_name = None
         if self.parent_backdrop_matching:
