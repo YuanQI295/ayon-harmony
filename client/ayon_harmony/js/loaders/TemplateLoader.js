@@ -72,7 +72,7 @@ TemplateLoader.prototype.resolveDuplicateBackdropTitles = function() {
 
         var seen = {};
         var renames = [];
-        for (var j = 0; j < backdrops.length; j++) {
+        for (var j = backdrops.length - 1; j >= 0; j--) {
             var title = backdrops[j].title.text;
             if (!seen[title]) { seen[title] = true; continue; }
 

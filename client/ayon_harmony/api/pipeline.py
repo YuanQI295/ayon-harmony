@@ -481,9 +481,15 @@ def resolve_duplicate_backdrops():
 
 
 def _move_metadata_key(old_name: str, new_name: str):
-    """Move a backdrop's metadata entry from old_name to new_name key."""
+    """Move a backdrop's metadata entry from old_name to new_name key,
+    and update the "name"/"objectName" fields inside that entry to
+    match the new key - otherwise they stay frozen at the value set
+    at load time, which becomes ambiguous once duplicates are renamed
+    (multiple entries can then share the same "name" even though their
+    dictionary key/backdrop title differs).
+    """
     log_to_file(f"_move_metadata_key:: start old_name={old_name!r} new_name={new_name!r}")
-
+ 
     response = harmony.send({"script": f"""
     var backdrops = Backdrop.backdrops("Top");
     for (var i = 0; i < backdrops.length; i++) {{
@@ -498,6 +504,15 @@ def _move_metadata_key(old_name: str, new_name: str):
                     if (metadata["{old_name}"]) {{
                         metadata["{new_name}"] = metadata["{old_name}"];
                         delete metadata["{old_name}"];
+ 
+                        // Keep "name"/"objectName" in sync with the new
+                        // key, so they stop pointing at a stale/shared
+                        // value once this entry has been renamed.
+                        metadata["{new_name}"]["name"] = "{new_name}";
+                        if (metadata["{new_name}"]["objectName"]) {{
+                            metadata["{new_name}"]["objectName"] = "{new_name}";
+                        }}
+ 
                         backdrops[i].description.text = prefix + "\\n" + JSON.stringify(metadata);
                         Backdrop.setBackdrops("Top", backdrops);
                     }}
@@ -508,6 +523,7 @@ def _move_metadata_key(old_name: str, new_name: str):
     """})
     log_to_file(f"_move_metadata_key:: response={response}")
     log_to_file(f"_move_metadata_key:: end old_name={old_name!r} new_name={new_name!r}")
+ 
 
 
 
