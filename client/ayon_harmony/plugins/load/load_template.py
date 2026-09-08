@@ -24,7 +24,7 @@ class TemplateLoader(harmony.BackdropBaseLoader):
 
     def load(self, context, name=None, namespace=None, data=None):
         """Plugin entry point.
-        Write metadata to note node in the backdrop for better tracking of 
+        Write metadata to note node in the backdrop for better tracking of
         the container and its metadata.
 
         Args:
@@ -87,4 +87,3 @@ class TemplateLoader(harmony.BackdropBaseLoader):
             context,
             self_name
         )
-    
