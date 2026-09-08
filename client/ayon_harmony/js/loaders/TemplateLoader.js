@@ -24,6 +24,13 @@ var TemplateLoader = function() {};
 
 /**
  * Parse a backdrop name into its base name and numeric suffix count.
+ * @function
+ * @param {string} name Backdrop title to parse.
+ * @return {object} Object with `baseName` (string) and `count` (number,
+ * 0 if no numeric suffix found).
+ * @example
+ * parseBackdropName("harmony_template_Main_3");
+ * // -> { baseName: "harmony_template_Main", count: 3 }
  */
 function parseBackdropName(name) {
     var lastIndex = name.lastIndexOf('_');
@@ -40,51 +47,52 @@ function parseBackdropName(name) {
     return { baseName: name, count: 0 };
 }
 
+/**
+ * Rename backdrops sharing an identical title so each ends up unique.
+ * @function
+ * @return {Array<Array<string>>} List of [oldTitle, newTitle] pairs.
+ */
 TemplateLoader.prototype.resolveDuplicateBackdropTitles = function() {
-    try {
-        var backdrops = Backdrop.backdrops("Top");
+    var backdrops = Backdrop.backdrops("Top");
 
-        var namesAtStart = [];
-        for (var s = 0; s < backdrops.length; s++) {
-            namesAtStart.push(backdrops[s].title.text);
-        }
-
-        var usedNumbers = {};
-        for (var i = 0; i < backdrops.length; i++) {
-            var parsed = parseBackdropName(backdrops[i].title.text);   // <- plus de "this."
-            if (!usedNumbers[parsed.baseName]) usedNumbers[parsed.baseName] = {};
-            usedNumbers[parsed.baseName][parsed.count] = true;
-        }
-
-        var seen = {};
-        var renames = [];
-        for (var j = backdrops.length - 1; j >= 0; j--) {
-            var title = backdrops[j].title.text;
-            if (!seen[title]) { seen[title] = true; continue; }
-
-            var base = parseBackdropName(title).baseName;             // <- idem
-            if (!usedNumbers[base]) usedNumbers[base] = {};
-            var next = 1;
-            while (usedNumbers[base][next]) next++;
-            usedNumbers[base][next] = true;
-            var newName = base + "_" + next;
-            backdrops[j].title.text = newName;
-            renames.push([title, newName]);
-        }
-
-        if (renames.length > 0) {
-            Backdrop.setBackdrops("Top", backdrops);
-        }
-
-        var namesAtEnd = [];
-        for (var e = 0; e < backdrops.length; e++) {
-            namesAtEnd.push(backdrops[e].title.text);
-        }
-
-        return renames;
-    } catch (err) {
-        throw err;
+    var namesAtStart = [];
+    for (var s = 0; s < backdrops.length; s++) {
+        namesAtStart.push(backdrops[s].title.text);
     }
+
+    var usedNumbers = {};
+    for (var i = 0; i < backdrops.length; i++) {
+        var parsed = parseBackdropName(backdrops[i].title.text);
+        if (!usedNumbers[parsed.baseName]) usedNumbers[parsed.baseName] = {};
+        usedNumbers[parsed.baseName][parsed.count] = true;
+    }
+
+    var seen = {};
+    var renames = [];
+    for (var j = backdrops.length - 1; j >= 0; j--) {
+        var title = backdrops[j].title.text;
+        if (!seen[title]) { seen[title] = true; continue; }
+
+        var base = parseBackdropName(title).baseName;
+        if (!usedNumbers[base]) usedNumbers[base] = {};
+        var next = 1;
+        while (usedNumbers[base][next]) next++;
+        usedNumbers[base][next] = true;
+        var newName = base + "_" + next;
+        backdrops[j].title.text = newName;
+        renames.push([title, newName]);
+    }
+
+    if (renames.length > 0) {
+        Backdrop.setBackdrops("Top", backdrops);
+    }
+
+    var namesAtEnd = [];
+    for (var e = 0; e < backdrops.length; e++) {
+        namesAtEnd.push(backdrops[e].title.text);
+    }
+
+    return renames;
 };
 
 

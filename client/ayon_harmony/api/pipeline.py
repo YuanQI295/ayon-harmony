@@ -54,7 +54,6 @@ LOAD_PATH = os.path.join(PLUGINS_DIR, "load")
 CREATE_PATH = os.path.join(PLUGINS_DIR, "create")
 INVENTORY_PATH = os.path.join(PLUGINS_DIR, "inventory")
 
-
 class HarmonyHost(HostBase, IWorkfileHost, ILoadHost, IPublishHost):
     name = "harmony"
 
@@ -285,7 +284,10 @@ def ls():
         dict: container
     """
     resolve_duplicate_backdrops()
+
     scene_data = harmony.get_scene_data() or dict()
+
+
     containers_names = harmony.get_all_top_names() | harmony.get_palettes_paths()
 
     updated_scene_data = False
@@ -339,6 +341,7 @@ def read_metadata_from_backdrops() -> dict:
     Returns:
         dict: Dictionary with metadata.
     """
+
     func = """function readBackdropMetadata() {
         var backdrops = Backdrop.backdrops("Top");
         var results = [];
@@ -356,11 +359,13 @@ def read_metadata_from_backdrops() -> dict:
     readBackdropMetadata"""
 
     response = harmony.send({"function": func})
+
     metadata_list = response["result"]
+
     metadata_dict = {}
-    for entry in enumerate(metadata_list):
+    for i, entry in enumerate(metadata_list):
         parsed = json.loads(entry)
-        metadata_dict.update(parsed)
+        metadata_dict |= parsed
 
     return metadata_dict
 
@@ -378,6 +383,7 @@ def ensure_metadata_in_backdrop(backdrop_name: str, metadata: dict):
 
     metadata_json = json.dumps(metadata).replace('"', '\\"')
     separator = "\\n" * 100
+
     harmony.send({"script": f"""
     var backdrops = Backdrop.backdrops("Top");
     for (var i = 0; i < backdrops.length; i++) {{
@@ -396,32 +402,28 @@ def ensure_metadata_in_backdrop(backdrop_name: str, metadata: dict):
 
 
 def resolve_duplicate_backdrops():
-    """Rename backdrops sharing an identical exact name, and move
-    their metadata to the new key. The "name" field inside each
-    entry is left untouched: it already holds the original template
-    name set at load time, independent of the backdrop's title.
-    """
+    """Rename backdrops sharing an identical exact name."""
+
     response = harmony.send({
         "function": "AyonHarmony.Loaders.TemplateLoader.resolveDuplicateBackdropTitles",
         "args": [],
     })
-
     renames = response["result"]
 
     for old_name, new_name in renames:
         _move_metadata_key(old_name, new_name)
 
-    return renames
-
 
 def _move_metadata_key(old_name: str, new_name: str):
     """Move a backdrop's metadata entry from old_name to new_name key,
     and update the "name"/"objectName" fields inside that entry to
-    match the new key - otherwise they stay frozen at the value set
-    at load time, which becomes ambiguous once duplicates are renamed
-    (multiple entries can then share the same "name" even though their
-    dictionary key/backdrop title differs).
+    match the new key
+
+    Args:
+        old_name (str): Old name of backdrop
+        new_name (str): New name of backdrop after resolving duplicated backdrop names 
     """
+
  
     harmony.send({"script": f"""
     var backdrops = Backdrop.backdrops("Top");
@@ -454,7 +456,6 @@ def _move_metadata_key(old_name: str, new_name: str):
         }}
     }}
     """})
-
 
 
 
@@ -495,4 +496,5 @@ def containerise(name,
     }
 
     harmony.imprint(node, data)
+
     return node
