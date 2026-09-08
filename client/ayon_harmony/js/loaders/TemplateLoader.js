@@ -14,19 +14,6 @@ if (typeof $ === 'undefined'){
     $ = this.__proto__['$'];
 }
 
-var TEMPLATE_LOADER_LOG_PATH = "C:/Users/normaal/Documents/YuanDev/AYON-Development-Workbench/LOG.txt";
-
-/**
- * Append a line to the shared LOG.txt file.
- * @function
- * @param {string} line Text line to append.
- */
-function logToFile(line) {
-    var logFile = new File(TEMPLATE_LOADER_LOG_PATH);
-    logFile.open(FileAccess.WriteOnly | FileAccess.Append);
-    logFile.writeLine(line);
-    logFile.close();
-}
 
 /**
  * @namespace
@@ -61,7 +48,6 @@ TemplateLoader.prototype.resolveDuplicateBackdropTitles = function() {
         for (var s = 0; s < backdrops.length; s++) {
             namesAtStart.push(backdrops[s].title.text);
         }
-        logToFile("resolveDuplicateBackdropTitles:: names at start: [" + namesAtStart.join(", ") + "]");
 
         var usedNumbers = {};
         for (var i = 0; i < backdrops.length; i++) {
@@ -90,19 +76,13 @@ TemplateLoader.prototype.resolveDuplicateBackdropTitles = function() {
             Backdrop.setBackdrops("Top", backdrops);
         }
 
-        logToFile("resolveDuplicateBackdropTitles:: renames: [" + renames.map(
-            function(pair) { return pair[0] + " -> " + pair[1]; }
-        ).join(", ") + "]");
-
         var namesAtEnd = [];
         for (var e = 0; e < backdrops.length; e++) {
             namesAtEnd.push(backdrops[e].title.text);
         }
-        logToFile("resolveDuplicateBackdropTitles:: names at end: [" + namesAtEnd.join(", ") + "]");
 
         return renames;
     } catch (err) {
-        logToFile("resolveDuplicateBackdropTitles:: ERROR: " + err.message + " | stack: " + (err.stack || "n/a"));
         throw err;
     }
 };
@@ -205,7 +185,6 @@ TemplateLoader.prototype.loadContainer = function(args) {
         for (var r = 0; r < allBackdrops.length; r++) {
             namesAtRetrieval.push(allBackdrops[r].title.text);
         }
-        logToFile("loadContainer:: names at retrieval: [" + namesAtRetrieval.join(", ") + "]");
 
         var mainBackdropBaseName = this.parseBackdropName(mainBackdrop.title.text).baseName;
 
@@ -243,7 +222,6 @@ TemplateLoader.prototype.loadContainer = function(args) {
         for (var e = 0; e < allBackdrops.length; e++) {
             namesAtEnd.push(allBackdrops[e].title.text);
         }
-        logToFile("loadContainer:: names at end: [" + namesAtEnd.join(", ") + "]");
     } catch (_err) {
         $.cancelUndo();
         throw _err;

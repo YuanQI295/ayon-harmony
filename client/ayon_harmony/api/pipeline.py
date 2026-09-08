@@ -54,29 +54,6 @@ LOAD_PATH = os.path.join(PLUGINS_DIR, "load")
 CREATE_PATH = os.path.join(PLUGINS_DIR, "create")
 INVENTORY_PATH = os.path.join(PLUGINS_DIR, "inventory")
 
-# Same file the JS side (TemplateLoader.js) writes to via logToFile().
-# Keeping both sides in one file lets us see the exact interleaving
-# of Python and Harmony/JS calls when debugging.
-LOG_FILE_PATH = (
-    r"C:\Users\normaal\Documents\YuanDev\AYON-Development-Workbench\LOG.txt"
-)
-
-
-def log_to_file(line):
-    """Append a line to the shared LOG.txt file (same file the JS side
-    writes to), prefixed with a timestamp and a PY marker so it's easy
-    to tell Python log lines apart from JS ones.
-
-    Never raises - logging must not break the pipeline if the log
-    file/path is unavailable (e.g. different machine, permissions).
-    """
-    try:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
-            f.write(f"[{timestamp}] [PY] {line}\n")
-    except Exception:
-        log.exception("log_to_file:: failed to write to %s", LOG_FILE_PATH)
-
 
 class HarmonyHost(HostBase, IWorkfileHost, ILoadHost, IPublishHost):
     name = "harmony"
@@ -307,17 +284,9 @@ def ls():
     Yields:
         dict: container
     """
-    log_to_file("ls:: start")
-
-    log_to_file("ls:: calling resolve_duplicate_backdrops()")
     resolve_duplicate_backdrops()
-    log_to_file("ls:: resolve_duplicate_backdrops() returned")
-
     scene_data = harmony.get_scene_data() or dict()
-    log_to_file(f"ls:: scene_data keys={list(scene_data.keys())}")
-
     containers_names = harmony.get_all_top_names() | harmony.get_palettes_paths()
-    log_to_file(f"ls:: containers_names={containers_names}")
 
     updated_scene_data = False
     for entity_name, entity_data in scene_data.copy().items():
@@ -326,7 +295,6 @@ def ls():
 
         # Filter orphaned containers
         if entity_name not in containers_names:
-            log_to_file(f"ls:: removing orphaned container '{entity_name}' from scene_data")
             del scene_data[entity_name]
             updated_scene_data = True
 
@@ -335,17 +303,12 @@ def ls():
             clean_data = {
                 k: v for k, v in entity_data.items()
             }
-            log_to_file(f"ls:: ensure_metadata_in_backdrop('{entity_name}')")
             ensure_metadata_in_backdrop(entity_name, {entity_name: clean_data})
-            log_to_file(f"ls:: ensure_metadata_in_backdrop('{entity_name}') returned")
 
-    log_to_file("ls:: calling read_metadata_from_backdrops()")
     backdrop_metadata = read_metadata_from_backdrops()
-    log_to_file(f"ls:: read_metadata_from_backdrops() returned keys={list(backdrop_metadata.keys())}")
 
     for entity_name, entity_data in backdrop_metadata.items():
         if entity_name not in scene_data:
-            log_to_file(f"ls:: adding backdrop metadata for '{entity_name}' to scene_data")
             updated_scene_data = True
             scene_data[entity_name] = entity_data
 
@@ -362,14 +325,11 @@ def ls():
         yielded_count += 1
         yield entity_data
 
-    log_to_file(f"ls:: yielded {yielded_count} containers")
 
     # Update scene data if cleaned
     if updated_scene_data:
-        log_to_file("ls:: updated_scene_data=True, writing scene_data back")
         harmony.set_scene_data(scene_data)
 
-    log_to_file("ls:: end")
 
 def read_metadata_from_backdrops() -> dict:
     """Read metadata of templates from backdrop text fields.
@@ -379,8 +339,6 @@ def read_metadata_from_backdrops() -> dict:
     Returns:
         dict: Dictionary with metadata.
     """
-    log_to_file("read_metadata_from_backdrops:: start")
-
     func = """function readBackdropMetadata() {
         var backdrops = Backdrop.backdrops("Top");
         var results = [];
@@ -397,26 +355,13 @@ def read_metadata_from_backdrops() -> dict:
     }
     readBackdropMetadata"""
 
-    log_to_file("read_metadata_from_backdrops:: sending JS function to Harmony")
     response = harmony.send({"function": func})
-    log_to_file(f"read_metadata_from_backdrops:: raw response={response}")
-
     metadata_list = response["result"]
-    log_to_file(f"read_metadata_from_backdrops:: metadata_list length={len(metadata_list)}")
-
     metadata_dict = {}
-    for i, entry in enumerate(metadata_list):
-        try:
-            parsed = json.loads(entry)
-        except json.JSONDecodeError:
-            log_to_file(
-                f"read_metadata_from_backdrops:: ERROR failed to parse "
-                f"entry #{i}: {entry!r}"
-            )
-            raise
-        metadata_dict |= parsed
+    for entry in enumerate(metadata_list):
+        parsed = json.loads(entry)
+        metadata_dict.update(parsed)
 
-    log_to_file(f"read_metadata_from_backdrops:: end, metadata_dict keys={list(metadata_dict.keys())}")
     return metadata_dict
 
 
@@ -433,10 +378,6 @@ def ensure_metadata_in_backdrop(backdrop_name: str, metadata: dict):
 
     metadata_json = json.dumps(metadata).replace('"', '\\"')
     separator = "\\n" * 100
-    log_to_file(
-        f"ensure_metadata_in_backdrop:: sending script for "
-        f"backdrop_name={backdrop_name!r} (metadata_json length={len(metadata_json)})"
-    )
     harmony.send({"script": f"""
     var backdrops = Backdrop.backdrops("Top");
     for (var i = 0; i < backdrops.length; i++) {{
@@ -460,23 +401,16 @@ def resolve_duplicate_backdrops():
     entry is left untouched: it already holds the original template
     name set at load time, independent of the backdrop's title.
     """
-    log_to_file("resolve_duplicate_backdrops:: start, calling JS resolveDuplicateBackdropTitles")
-
     response = harmony.send({
         "function": "AyonHarmony.Loaders.TemplateLoader.resolveDuplicateBackdropTitles",
         "args": [],
     })
-    log_to_file(f"resolve_duplicate_backdrops:: raw response={response}")
 
     renames = response["result"]
-    log_to_file(f"resolve_duplicate_backdrops:: renames={renames}")
 
     for old_name, new_name in renames:
-        log_to_file(f"resolve_duplicate_backdrops:: moving metadata key {old_name!r} -> {new_name!r}")
         _move_metadata_key(old_name, new_name)
-        log_to_file(f"resolve_duplicate_backdrops:: resolved duplicate backdrop name: {old_name} -> {new_name}")
 
-    log_to_file(f"resolve_duplicate_backdrops:: end, {len(renames)} rename(s) processed")
     return renames
 
 
@@ -488,9 +422,8 @@ def _move_metadata_key(old_name: str, new_name: str):
     (multiple entries can then share the same "name" even though their
     dictionary key/backdrop title differs).
     """
-    log_to_file(f"_move_metadata_key:: start old_name={old_name!r} new_name={new_name!r}")
  
-    response = harmony.send({"script": f"""
+    harmony.send({"script": f"""
     var backdrops = Backdrop.backdrops("Top");
     for (var i = 0; i < backdrops.length; i++) {{
         if (backdrops[i].title.text === "{new_name}") {{
@@ -521,9 +454,7 @@ def _move_metadata_key(old_name: str, new_name: str):
         }}
     }}
     """})
-    log_to_file(f"_move_metadata_key:: response={response}")
-    log_to_file(f"_move_metadata_key:: end old_name={old_name!r} new_name={new_name!r}")
- 
+
 
 
 
@@ -563,8 +494,5 @@ def containerise(name,
         "nodes": nodes
     }
 
-    log_to_file(f"containerise:: imprinting node={node!r} data={data}")
     harmony.imprint(node, data)
-    log_to_file(f"containerise:: done for node={node!r}")
-
     return node
