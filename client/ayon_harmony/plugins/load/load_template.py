@@ -6,6 +6,7 @@ import zipfile
 import shutil
 
 import ayon_harmony.api as harmony
+
 from ayon_core.pipeline import (
     AYON_CONTAINER_ID,
 )
@@ -41,7 +42,6 @@ class TemplateLoader(harmony.BackdropBaseLoader):
         override_name = ""
         if self.override_name:
             override_name = self.override_name.format(**context)
-
 
         parent_backdrop_name = None
         if self.parent_backdrop_matching:

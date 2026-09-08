@@ -13,8 +13,6 @@ if (typeof AyonHarmony === 'undefined') {
 if (typeof $ === 'undefined'){
     $ = this.__proto__['$'];
 }
-
-
 /**
  * @namespace
  * @classdesc Image Sequence loader JS code.
@@ -52,7 +50,7 @@ function parseBackdropName(name) {
  * @function
  * @return {Array<Array<string>>} List of [oldTitle, newTitle] pairs.
  */
-TemplateLoader.prototype.resolveDuplicateBackdropTitles = function() {
+TemplateLoader.prototype.resolveDuplicateBackdropTitles = function () {
     var backdrops = Backdrop.backdrops("Top");
 
     var namesAtStart = [];
@@ -225,7 +223,6 @@ TemplateLoader.prototype.loadContainer = function(args) {
         // Update backdrops in scene
         Backdrop.setBackdrops("Top", allBackdrops);
 
-        // Log all container names at the end of the function
         var namesAtEnd = [];
         for (var e = 0; e < allBackdrops.length; e++) {
             namesAtEnd.push(allBackdrops[e].title.text);

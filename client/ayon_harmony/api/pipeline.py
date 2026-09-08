@@ -287,7 +287,6 @@ def ls():
 
     scene_data = harmony.get_scene_data() or dict()
 
-
     containers_names = harmony.get_all_top_names() | harmony.get_palettes_paths()
 
     updated_scene_data = False
@@ -302,9 +301,7 @@ def ls():
 
     for entity_name, entity_data in scene_data.items():
         if is_container_data(entity_data):
-            clean_data = {
-                k: v for k, v in entity_data.items()
-            }
+            clean_data = {k: v for k, v in entity_data.items()}
             ensure_metadata_in_backdrop(entity_name, {entity_name: clean_data})
 
     backdrop_metadata = read_metadata_from_backdrops()
@@ -326,7 +323,6 @@ def ls():
             entity_data["objectName"] = entity_data["name"]
         yielded_count += 1
         yield entity_data
-
 
     # Update scene data if cleaned
     if updated_scene_data:
@@ -404,10 +400,12 @@ def ensure_metadata_in_backdrop(backdrop_name: str, metadata: dict):
 def resolve_duplicate_backdrops():
     """Rename backdrops sharing an identical exact name."""
 
-    response = harmony.send({
-        "function": "AyonHarmony.Loaders.TemplateLoader.resolveDuplicateBackdropTitles",
-        "args": [],
-    })
+    response = harmony.send(
+        {
+            "function": "AyonHarmony.Loaders.TemplateLoader.resolveDuplicateBackdropTitles",
+            "args": [],
+        }
+    )
     renames = response["result"]
 
     for old_name, new_name in renames:
@@ -421,10 +419,9 @@ def _move_metadata_key(old_name: str, new_name: str):
 
     Args:
         old_name (str): Old name of backdrop
-        new_name (str): New name of backdrop after resolving duplicated backdrop names 
+        new_name (str): New name of backdrop after resolving duplicated backdrop names
     """
 
- 
     harmony.send({"script": f"""
     var backdrops = Backdrop.backdrops("Top");
     for (var i = 0; i < backdrops.length; i++) {{
@@ -456,7 +453,6 @@ def _move_metadata_key(old_name: str, new_name: str):
         }}
     }}
     """})
-
 
 
 def containerise(name,
