@@ -24,16 +24,17 @@ function import_image(args)
     var col = $.scene.addColumn("DRAWING", layerName, element);
     element.column = col;
 
-    var imgInfo = CELIO.getInformation(imageFile.path);
     var drawing;
 
-    if (imgInfo && imgInfo.width && imgInfo.height) {
+    var sceneResX = $.scene.resolutionX;
+    var sceneResY = $.scene.resolutionY;
+    if (sceneResX > 0 && sceneResY > 0) {
         var utransformBin = specialFolders.bin + "/utransform";
         var tempFolder = $.scn.tempFolder;
         var convertedPath = tempFolder.path + "/" + imageFile.name + ".tvg";
         var convertProcess = new $.oProcess(utransformBin, [
             "-outformat", "TVG", "-debug",
-            "-resolution", imgInfo.width, imgInfo.height,
+            "-resolution", sceneResX, sceneResY,
             "-outfile", convertedPath, imageFile.path
         ]);
         convertProcess.execute();
@@ -53,15 +54,6 @@ function import_image(args)
     imageNode.alignment_rule = "ASIS";
     imageNode.attributes.drawing.element.setValue(drawing.name, 1);
     imageNode.attributes.drawing.element.column.extendExposures();
-
-    // Le loader importe par defaut en "Vertical Fit". Pour retrouver la vraie taille de
-    // l'image ("Actual Size"), le même facteur est appliqué sur les 2 axes du scale.
-    var sceneResY = $.scene.resolutionY;
-    if (imgInfo && imgInfo.height > 0 && sceneResY > 0) {
-        var uniformScale = imgInfo.height / sceneResY;
-        imageNode.scale.x = uniformScale;
-        imageNode.scale.y = uniformScale;
-    }
 
     node.getAttr(imageNode.path, 1, "lineArtDrawingMode").setValue("BitmapDrawingMode");
     node.getAttr(imageNode.path, 1, "applyMatteToColor").setValue(1); // 1 = Straight
@@ -84,15 +76,17 @@ function replace_image(args)
     var col = $.scene.addColumn("DRAWING", layerName, element);
     element.column = col;
 
-    var imgInfo = CELIO.getInformation(imageFile.path);
     var drawing;
-    if (imgInfo && imgInfo.width && imgInfo.height) {
+
+    var sceneResX = $.scene.resolutionX;
+    var sceneResY = $.scene.resolutionY;
+    if (sceneResX > 0 && sceneResY > 0) {
         var utransformBin = specialFolders.bin + "/utransform";
         var tempFolder = $.scn.tempFolder;
         var convertedPath = tempFolder.path + "/" + imageFile.name + ".tvg";
         var convertProcess = new $.oProcess(utransformBin, [
             "-outformat", "TVG", "-debug",
-            "-resolution", imgInfo.width, imgInfo.height,
+            "-resolution", sceneResX, sceneResY,
             "-outfile", convertedPath, imageFile.path
         ]);
         convertProcess.execute();
@@ -112,13 +106,6 @@ function replace_image(args)
     newImageNode.alignment_rule = "ASIS";
     newImageNode.attributes.drawing.element.setValue(drawing.name, 1);
     newImageNode.attributes.drawing.element.column.extendExposures();
-
-    var sceneResY = $.scene.resolutionY;
-    if (imgInfo && imgInfo.height > 0 && sceneResY > 0) {
-        var uniformScale = imgInfo.height / sceneResY;
-        newImageNode.scale.x = uniformScale;
-        newImageNode.scale.y = uniformScale;
-    }
 
     node.getAttr(newImageNode.path, 1, "lineArtDrawingMode").setValue("BitmapDrawingMode");
     node.getAttr(newImageNode.path, 1, "applyMatteToColor").setValue(1); // 1 = Straight
