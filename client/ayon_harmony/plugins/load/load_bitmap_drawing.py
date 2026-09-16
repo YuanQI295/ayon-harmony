@@ -77,7 +77,6 @@ function replace_image(args)
     element.column = col;
 
     var drawing;
-
     var sceneResX = $.scene.resolutionX;
     var sceneResY = $.scene.resolutionY;
     if (sceneResX > 0 && sceneResY > 0) {
