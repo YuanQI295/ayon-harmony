@@ -34,7 +34,7 @@ function import_image(args)
         var convertedPath = tempFolder.path + "/" + imageFile.name + ".tvg";
         var convertProcess = new $.oProcess(utransformBin, [
             "-outformat", "TVG", "-debug",
-            "-resolution", imgInfo.width, imgInfo.height,
+            "-resolution", sceneResX, sceneResY,
             "-outfile", convertedPath, imageFile.path
         ]);
         convertProcess.execute();
@@ -85,7 +85,7 @@ function replace_image(args)
         var convertedPath = tempFolder.path + "/" + imageFile.name + ".tvg";
         var convertProcess = new $.oProcess(utransformBin, [
             "-outformat", "TVG", "-debug",
-            "-resolution", imgInfo.width, imgInfo.height,
+            "-resolution", sceneResX, sceneResY,
             "-outfile", convertedPath, imageFile.path
         ]);
         convertProcess.execute();
